@@ -1,222 +1,226 @@
-import random
+import pygame, time, math
 
-class Weapon:
+pygame.init()
 
-    __actual_ammo = int
+clock = pygame.time.Clock()
+autoClickPower = 0
+coins = 0
+coinsPerClick = 1
+deltaTime = 0
+mineCooldown = 0
+coinsPerSecond = 0
 
-    def __weapon(self, speed, magazine, bps):
-        self.__speed = speed
-        self.__magazine_size = magazine
-        self.__bullets_per_shot = bps
-        self.__actual_ammo = magazine
+circles = []
+squares = []
+buttons = []
+onClickText = []
+coinsPerSecondList = []
 
-    def choseWeapon(self, weapon = int):
-        if (weapon == 1):
-            self.__weapon(self, 6, 15, 1)
-        elif (weapon == 2):
-            self.__weapon(self, 14, 30, 1)
-        elif (weapon == 3):
-            self.__weapon(self, 4, 5, 3)
-        else:
-            w = int(input("No weapon found, try again: 1.Pistol 2.M4 3.Shotgun"))
-            self.choseWeapon(self, w)
+gameDisplay = pygame.display.set_mode((800, 600))
+pygame.display.set_caption("clicky clicks")
 
-    def change_actual_ammo(self):
-        self.__actual_ammo -= 1
+class Circle:
+    def __init__(self, color, position, radius, name):
+        self.color = color
+        self.position = position
+        self.radius = radius
+        self.name = name
 
-    def reload(self):
-        self.__actual_ammo = self.__magazine_size
+    def draw(self):
+        self.drawing = pygame.draw.circle(gameDisplay, self.color, self.position, self.radius)
 
-    def get_weapon_details(self, option = int):
-        if (option == 1):
-            return self.__speed
-        elif (option == 2):
-            return self.__magazine_size
-        elif (option == 3):
-            return self.__bullets_per_shot
-        
-    def get_actual_ammo(self):
-        return self.__actual_ammo
+    def IsColliding(self):
+        if self.drawing.collidepoint(pygame.mouse.get_pos()): return True
 
-class Targets:
+class Square:
+    def __init__(self, color, position, size, name = int, isButton = bool):
+        self.color = color
+        self.position = position
+        self.size = size
+        self.name = name
+        if (isButton):
+            buttons.append(Button(self.name))
 
-    __num_of_enemies = int
 
-    def set_targets(self, enemies = int, citizens = int, enem_skill = int):
-        self.__num_of_enemies = enemies
-        self.__num_of_citizens = citizens
-        self.__enemies_skill = enem_skill
+    def draw(self):
+        self.drawing = pygame.draw.rect(gameDisplay, self.color, (self.position[0], self.position[1], self.size[0], self.size[1]))
 
-    def decrease_enemies(self, ammount = int):
-        self.__num_of_enemies -= ammount
+    def IsColliding(self):
+        if self.drawing.collidepoint(pygame.mouse.get_pos()): return True
 
-    def decrease_citizens(self, ammount = int):
-        self.__num_of_citizens -= ammount
+def DrawText(text, Textcolor, x, y, fsize, transparency = 255):
+    font = pygame.font.Font('freesansbold.ttf', fsize)
+    text = font.render(text, True, Textcolor)
+    text.set_alpha(transparency)
+    textRect = text.get_rect()
+    textRect.center = (x, y)
+    gameDisplay.blit(text, textRect)
 
-    def get_targets(self, option = int):
-        if (option == 1):
-            return self.__num_of_enemies
-        elif (option == 2):
-            return self.__num_of_citizens
-        elif (option == 3):
-            return self.__enemies_skill
-        else:
-            return self.__num_of_enemies, self.__num_of_citizens, self.__enemies_skill
+class OnClickText:
+    def __init__(self, mousePos):
+        self.x = mousePos[0]
+        self.y = mousePos[1]
+        self.transparency = 255
+        onClickText.append(self)
+
+def OnClickTextAnimation():
+    for text in onClickText:
+        DrawText(str(f'{coinsPerClick}') + " coins", (0, 0, 0), text.x, text.y, 20, text.transparency)
+        text.y -= .1 * deltaTime
+        text.transparency -= .6 * deltaTime
+        if text.transparency <= 0:
+            onClickText.remove(text)
+
+class Button:
+    def __init__(self, name):
+        self.name = name
+        self.price = 0
+        self.lvl = 0
     
-class Player:
+    def SetPrice(self, price):
+        self.price = price
 
-    __skill = 20
-    game_difficulty = int
-    prev_dif = int
-    __inc_skill = True
-    __life = 100
+    def IncreaseLevel(self, amount):
+        self.lvl += amount
 
-    def set_player_life(self, ammount = int):
-        self.__life = ammount
+    def IncreasePrice(self, times):
+        self.price = round(self.price * times, 0)
 
-    def set_skill(self, ammount = int):
-        if (self.prev_dif != self.game_difficulty):
-            self.__skill = ammount
-            self.__inc_skill = False
-
-    def icrease_skill(self, ammount = int):
-        if (self.__skill < 100 and self.__inc_skill):
-            self.__skill += ammount
-            if (self.__skill > 100):
-                self.__skill = 100
-        else:
-            self.__inc_skill = True
-
-    def change_player_life(self, ammount):
-        self.__life += ammount
+    def GetPrice(self):
+        return self.price
     
-    def get_player_skill(self):
-        return self.__skill
+    def GetLevel(self):
+        return self.lvl
     
-    def get_player_life(self):
-        return self.__life
-    
-    def player_ded(self):
-        print("You died lol")
+class CoinsPerSecond:
+    def __init__(self, amount, time):
+        self.amount = amount
+        self.time = time
 
-class Game:
+def Autominer():
+    global mineCooldown
+    if mineCooldown <= 0:
+        TouchCoins(autoClickPower)
+        mineCooldown = 250
+    else:
+        mineCooldown -= deltaTime
 
-    __play_nr = 0
-    __round_nr = 0
+def IncreaseAutoClick(times):
+    global autoClickPower
+    if autoClickPower == 0:
+        autoClickPower = 1
+    else:
+        autoClickPower *= times
 
-    def play(self):
-        Player.set_player_life(Player, 100)
-        self.__set_difficulty(int(input("Choose difficulty: 1.Easy 2.Normal 3.Hard 4.Custom ")))
+def IncreaseCoinsPerClick(times):
+    global coinsPerClick
+    coinsPerClick = round(coinsPerClick * times, 2)
 
-        self.__decide_skill_level()
+def TouchCoins(amount):
+    global coins
+    coins += amount
+    CoinsPerSecondCalculator(amount)
 
-        print("Player life:",Player.get_player_life(Player), "skill:", Player.get_player_skill(Player))
-        print("Number of enemies:", Targets.get_targets(Targets,1), "citizens:", Targets.get_targets(Targets,2))
-
-        Weapon.choseWeapon(Weapon, int(input("Choose a weapon: 1.Pistol 2.M4 3.Shotgun ")))
-
-        while (Player.get_player_life(Player) > 0 and Targets.get_targets(Targets, 1) > 0):
-            self.__kill_suff()
-            self.__round_nr += 1
-            if (self.__round_nr == 5):
-                self.__take_damage()
-                self.__round_nr = 0
-
-        self.__win_lose_state()
-
-        # Keep at bottom !!!!!!
-        self.__restart()
-
-    def __decide_skill_level(self):
-        if (self.__play_nr == 0):
-            self.__play_nr += 1
-            Player.icrease_skill(Player, 0)
-        else:
-            Player.icrease_skill(Player, 20)
-
-    def __set_difficulty(self, difficulty):
-        Player.game_difficulty = difficulty
-
-        if (difficulty == 1):
-            Targets.set_targets(Targets, 50, 0, 20)
-            Player.set_skill(Player, 100)
-        elif (difficulty == 2):
-            Targets.set_targets(Targets, 80, 20, 50)
-            Player.set_skill(Player, 50)
-        elif (difficulty == 3):
-            Targets.set_targets(Targets, 110, 50, 80)
-            Player.set_skill(Player, 20)
-        elif (difficulty == 4):
-            Targets.set_targets(Targets, int(input("")), int(input("")), int(input("")))
-            Player.set_skill(Player, int(input("")))
-        else:
-            d = int(input("No difficulty found, try again: 1.Easy 2.Normal 3.Hard 4.Custom "))
-            self.__set_difficulty(d)
-
-        Player.prev_dif = difficulty
-
-    def __kill_suff(self):
-        self.__shoot()
-
-    def __shoot(self):
-        self.__chance_enem = Player.get_player_skill(Player)
-        if (self.__chance_enem != 100):
-            self.__chance_citiz = (100 - self.__chance_enem) / 2.5 + self.__chance_enem
-        else:
-            self.__chance_citiz = -1
-
-        self.__enemies_killed, self.__citizens_killed, self.__missed = 0, 0, 0
-        self.__no_Ammo = False
-        for i in range(Weapon.get_weapon_details(Weapon, 1)):
-            Weapon.change_actual_ammo(Weapon)
-            self.__lucky_guess = random.randint(0,100)
-            if (self.__lucky_guess <= self.__chance_enem and Targets.get_targets(Targets, 1) and Weapon.get_actual_ammo(Weapon) > 0):
-                Targets.decrease_enemies(Targets, 1)
-                self.__enemies_killed += 1
-            elif (self.__lucky_guess > self.__chance_enem and self.__lucky_guess <= self.__chance_citiz and Targets.get_targets(Targets, 2) and Weapon.get_actual_ammo(Weapon) > 0):
-                Targets.decrease_citizens(Targets, 1)
-                self.__citizens_killed += 1
-            elif (Weapon.get_actual_ammo(Weapon) <= 0):
-                Weapon.reload(Weapon)
-                print("You killed:", self.__enemies_killed,"Enemies,", self.__citizens_killed, "Citizens and missed", self.__missed, "shots, ran out of ammo and had to hide")
-                self.__no_Ammo = True
-                break
+def CoinsPerSecondCalculator(amount):
+    global coinsPerSecond
+    if amount > 0:
+        coinsPerSecondList.append(CoinsPerSecond(amount, 1000))
+        coinsPerSecond = 0
+        for i in coinsPerSecondList:
+            coinsPerSecond += i.amount
+    for i in coinsPerSecondList:
+            if i.time <= 0:
+                coinsPerSecond -= i.amount
+                coinsPerSecondList.pop(coinsPerSecondList.index(i))
             else:
-                self.__missed += 1
+                i.time -= deltaTime
+
+def forCircle(name):
+    for circle in circles:
+        if circle.name == name:
+            return circle
+            
+def forSquare(name):
+    for square in squares:
+        if square.name == name:
+            return square
+
+def forButton(name):
+    for button in buttons:
+        if button.name == name:
+            return button
+
+circles.append(Circle((108, 77, 59), (400, 260), 160, "cookie"))
+
+squares.append(Square((0, 100, 250), (50, 500), (200, 50), "but1", True))
+squares.append(Square((0, 155, 255), (55, 505), (190, 40)))
+squares.append(Square((0, 100, 250), (550, 500), (200, 50), "but2", True))
+squares.append(Square((0, 155, 255), (555, 505), (190, 40)))
+
+forButton("but1").SetPrice(50)
+forButton("but2").SetPrice(50)
+
+def main_loop():
+    global coinsPerClick
+    coinsPerClick = 1
+    global coins
+    coins = 50
+    global deltaTime
+    while True:
+        Autominer()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if (forCircle("cookie").IsColliding()):
+                    TouchCoins(coinsPerClick)
+                    mousePos = pygame.mouse.get_pos()
+                    OnClickText((mousePos[0], mousePos[1]))
+
+                if (forSquare("but1").IsColliding() and coins >= forButton("but1").price):
+                    button = forButton("but1")
+                    TouchCoins(-button.price)
+                    button.IncreasePrice(1.5)
+                    button.IncreaseLevel(1)
+                    IncreaseCoinsPerClick(1.4)
+                
+                if (forSquare("but2").IsColliding() and coins >= forButton("but2").price):
+                    button = forButton("but2")
+                    TouchCoins(-button.price)
+                    button.IncreasePrice(1.5)
+                    button.IncreaseLevel(1)
+                    IncreaseAutoClick(1.3)
+
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
+
+        CoinsPerSecondCalculator(0)
+
+        # Draw
+        gameDisplay.fill((173, 216, 230))
+
+        for i in circles: i.draw()
+        for i in squares: i.draw()
+
+        DrawText(str(f'{coins:.2f}') + " coins", (0, 0, 0), 400, 50, 20)
+        DrawText(str(f'{coinsPerSecond:.2f}') + " coins/s", (100, 100, 100), 400, 65, 15, 175)
+
+        DrawText("upgrade clicker " + str(forButton("but1").lvl), (0, 0, 0), 150, 480, 20)
+        DrawText(str(forButton("but1").price), (0, 0, 0), 150, 525, 20)
+        DrawText(str(f'{coinsPerClick:.2f}'), (0, 0, 0), 150, 570, 20)
         
-        if (self.__no_Ammo == False):
-            print("You killed:", self.__enemies_killed,"Enemies,", self.__citizens_killed, "Citizens and missed", self.__missed, "shots")
+        DrawText("buy auto miner " + str(forButton("but2").lvl), (0, 0, 0), 650, 480, 20)
+        DrawText(str(forButton("but2").price), (0, 0, 0), 650, 525, 20)
+        DrawText(str(f'{autoClickPower:.2f}'), (0, 0, 0), 650, 570, 20)
 
-    def __take_damage(self):
-        self.__took_damage = False
-        self.__damage_taken = 0
-        for n in range(Targets.get_targets(Targets, 1)):
-            self.__lucky_guess = random.randint(0,100)
-            if (Player.get_player_life(Player) == 0):
-                Player.player_ded(Player)
-                break
-            elif (self.__lucky_guess <= Targets.get_targets(Targets, 3)):
-                Player.change_player_life(Player,-1)
-                self.__took_damage = True
-                self.__damage_taken += 1
-       
-        if (self.__took_damage):
-            print("The enemies shot you, and lost", self.__damage_taken, "Health")
+        OnClickTextAnimation()
 
-    def __restart(self):
-        self.G = input("Whant to play again? Press 'Enter' to restart, type anything no quit ")
-        if (self.G == "" or self.G == "yes" or self.G == "Yes"):
-            print("-------------------------------------------------------------------------")
-            self.play()
+        pygame.display.update()
+        deltaTime = clock.tick(60)
 
-    def __win_lose_state(self):
-        if (Targets.get_targets(Targets, 1) <= 0 and Targets.get_targets(Targets, 2) >= 1):
-            print("Congratulations, you won and saved", Targets.get_targets(Targets, 2), "citizens!")
-        elif (Targets.get_targets(Targets, 1) <= 0 and Targets.get_targets(Targets, 2) <= 0):
-            print("Congratulations, you won... but killed all the citizens")
-            print("DEATH SENTENCE!!!!")
-
-my_game = Game()
-
-my_game.play()
-# shotgun + colors
+main_loop()
+pygame.quit()
+quit()
