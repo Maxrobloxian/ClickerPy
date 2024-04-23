@@ -6,7 +6,7 @@
 04.10.2024
   - nejake optimizace
 
-04.10.2024
+04.17.2024
   - button/text controler
   - coiny na secundu calculator
 
